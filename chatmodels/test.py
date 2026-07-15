@@ -1,3 +1,5 @@
+from urllib import response
+
 from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env file
@@ -9,8 +11,11 @@ model=ChatMistralAI(model_name="mistral-small-2506", temperature=0.9, max_tokens
 
 print("Model initialized:", model)
 
-prompt=input("You: ")
+while True:
+    print("Type 'exit' to quit.")
 
-
-response = model.invoke(prompt)
-print("Response:", response)
+    prompt=input("You: ")
+    if prompt.lower() == "exit":
+        break
+    response = model.invoke(prompt)
+    print("Response:", response.content)
