@@ -6,12 +6,14 @@ Run with:
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import streamlit as st
 
+from chatmodels.main import get_reply, new_conversation
 
-# Static sample messages used only to demonstrate the visual design.
-# Replace or remove these when connecting real chatbot functionality.
-DEMO_MESSAGES = [
+# The greeting is used only when a conversation is first created.
+INITIAL_MESSAGES = [
     {
         "role": "ai",
         "author": "Nova AI",
@@ -375,13 +377,15 @@ def inject_global_styles() -> None:
 
 
 def render_sidebar() -> None:
-    """Render the sidebar with chat history and non-functional settings."""
+    """Render the sidebar and controls for the current conversation."""
     with st.sidebar:
         st.markdown("## 🛸 Nova Command")
         st.caption("Intergalactic chat workspace")
 
-        # New chat action placeholder for future functionality.
-        st.button("＋ New Chat", use_container_width=True)
+        if st.button("＋ New Chat", use_container_width=True):
+            st.session_state.chat_messages = INITIAL_MESSAGES.copy()
+            st.session_state.model_history = new_conversation()
+            st.rerun()
 
         # Chat history placeholder entries.
         st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
@@ -447,8 +451,8 @@ def render_message(message: dict[str, str]) -> None:
     )
 
 
-def render_chat_area() -> None:
-    """Render the visual chat transcript and typing indicator placeholder."""
+def render_chat_area(messages: list[dict[str, str]]) -> None:
+    """Render the current chat transcript."""
     st.markdown('<section class="chat-shell">', unsafe_allow_html=True)
     st.markdown(
         """
@@ -460,8 +464,7 @@ def render_chat_area() -> None:
         unsafe_allow_html=True,
     )
 
-    # Demonstration-only message area with distinct user and AI styling.
-    for message in DEMO_MESSAGES:
+    for message in messages:
         render_message(message)
 
     # Typing indicator placeholder for future streaming responses.
@@ -480,26 +483,49 @@ def render_chat_area() -> None:
 
 
 def render_prompt_composer() -> None:
-    """Render the bottom prompt box and send button without wiring behavior."""
+    """Collect a prompt, request a reply, and update session state."""
     st.markdown('<section class="composer-shell">', unsafe_allow_html=True)
-    input_col, button_col = st.columns([5, 1.2], vertical_alignment="bottom")
-    with input_col:
-        st.text_input(
-            "Prompt",
-            placeholder="Transmit a message to the stars...",
-            label_visibility="collapsed",
-        )
-    with button_col:
-        st.button("Send", use_container_width=True)
+    with st.form("prompt-form", clear_on_submit=True):
+        input_col, button_col = st.columns([5, 1.2], vertical_alignment="bottom")
+        with input_col:
+            prompt = st.text_input(
+                "Prompt",
+                placeholder="Transmit a message to the stars...",
+                label_visibility="collapsed",
+            )
+        with button_col:
+            submitted = st.form_submit_button("Send", use_container_width=True)
     st.markdown("</section>", unsafe_allow_html=True)
+
+    if not submitted or not prompt.strip():
+        return
+
+    timestamp = datetime.now().strftime("%H:%M")
+    st.session_state.chat_messages.append(
+        {"role": "user", "author": "You", "text": prompt.strip(), "time": timestamp}
+    )
+    try:
+        reply = get_reply(st.session_state.model_history, prompt.strip())
+    except Exception as error:
+        reply = f"Unable to contact Nova: {error}"
+
+    st.session_state.chat_messages.append(
+        {"role": "ai", "author": "Nova AI", "text": reply, "time": timestamp}
+    )
+    st.rerun()
 
 
 def main() -> None:
     """Compose the full Streamlit interface."""
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = INITIAL_MESSAGES.copy()
+    if "model_history" not in st.session_state:
+        st.session_state.model_history = new_conversation()
+
     inject_global_styles()
     render_sidebar()
     render_hero()
-    render_chat_area()
+    render_chat_area(st.session_state.chat_messages)
     render_prompt_composer()
 
 
